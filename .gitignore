@@ -1,0 +1,51 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.egg-info/
+dist/
+build/
+
+# --- Virtual environments ---
+.venv/
+venv/
+ENV/
+env/
+cropvenv/
+
+# --- Jupyter / tooling ---
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+
+# --- Logs / temp ---
+*.log
+logs/
+tmp/
+temp/
+
+# --- SQLite ---
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local tooling / references / backups (do not commit)
+tools/
+cropx_reference/
+cropx_backup/
+
+# --- Windows Explorer metadata ---
+desktop.ini
+
+# --- Local SQLite cache ---
+.cache.sqlite
