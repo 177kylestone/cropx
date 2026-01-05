@@ -266,6 +266,7 @@ def run_irrigation_recommendations(
         )
 
         run_id = _create_model_run(conn, issue_date)
+        conn.commit()
         recommendations = plan_irrigation_recommendations(
             forecast_df=forecast_df,
             crop_params_df=crop_df,
