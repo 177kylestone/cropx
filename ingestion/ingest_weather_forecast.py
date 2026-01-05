@@ -17,6 +17,7 @@ def ingest_weather_forecast(
         "rainfall_mm_raw",
         "rainfall_mm_discounted",
         "ET0_mm",
+        "wind_speed_kmh",
         "Tmin_C",
         "Tmax_C",
     }
@@ -36,10 +37,11 @@ def ingest_weather_forecast(
             rainfall_mm_raw,
             rainfall_mm_discounted,
             ET0_mm,
+            wind_speed_kmh,
             Tmin_C,
             Tmax_C
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """
 
         conn.executemany(
@@ -51,6 +53,7 @@ def ingest_weather_forecast(
                     "rainfall_mm_raw",
                     "rainfall_mm_discounted",
                     "ET0_mm",
+                    "wind_speed_kmh",
                     "Tmin_C",
                     "Tmax_C",
                 ]

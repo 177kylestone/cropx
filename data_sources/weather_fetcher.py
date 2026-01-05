@@ -41,17 +41,20 @@ def fetch_historical_weather(
     client = _build_client(cache_expire_seconds=-1)
 
     url = "https://archive-api.open-meteo.com/v1/archive"
+    daily_vars = [
+        "temperature_2m_max",
+        "temperature_2m_min",
+        "precipitation_sum",
+        "et0_fao_evapotranspiration",
+        "wind_speed_10m_max",
+    ]
+
     params = {
         "latitude": latitude,
         "longitude": longitude,
         "start_date": start_date,
         "end_date": end_date,
-        "daily": [
-            "temperature_2m_max",
-            "temperature_2m_min",
-            "precipitation_sum",
-            "et0_fao_evapotranspiration",
-        ],
+        "daily": daily_vars,
         "timezone": "Pacific/Auckland",
     }
 
@@ -64,7 +67,11 @@ def fetch_historical_weather(
         .normalize()
     )
 
-    n_days = len(daily.Variables(0).ValuesAsNumpy())
+    values = {
+        name: daily.Variables(i).ValuesAsNumpy()
+        for i, name in enumerate(daily_vars)
+    }
+    n_days = len(values["temperature_2m_max"])
 
     dates = pd.date_range(
         start=start_ts,
@@ -75,10 +82,11 @@ def fetch_historical_weather(
     df = pd.DataFrame(
         {
             "date": dates.date,
-            "rainfall_mm": daily.Variables(2).ValuesAsNumpy(),
-            "ET0_mm": daily.Variables(3).ValuesAsNumpy(),
-            "Tmin_C": daily.Variables(1).ValuesAsNumpy(),
-            "Tmax_C": daily.Variables(0).ValuesAsNumpy(),
+            "rainfall_mm": values["precipitation_sum"],
+            "ET0_mm": values["et0_fao_evapotranspiration"],
+            "wind_speed_kmh": values["wind_speed_10m_max"],
+            "Tmin_C": values["temperature_2m_min"],
+            "Tmax_C": values["temperature_2m_max"],
             "data_quality": "archive_openmeteo",
         }
     )
@@ -106,15 +114,18 @@ def fetch_forecast_weather(
         forecast_issue_date = nz_today()
 
     url = "https://api.open-meteo.com/v1/forecast"
+    daily_vars = [
+        "temperature_2m_max",
+        "temperature_2m_min",
+        "precipitation_sum",
+        "et0_fao_evapotranspiration",
+        "wind_speed_10m_max",
+    ]
+
     params = {
         "latitude": latitude,
         "longitude": longitude,
-        "daily": [
-            "temperature_2m_max",
-            "temperature_2m_min",
-            "precipitation_sum",
-            "et0_fao_evapotranspiration",
-        ],
+        "daily": daily_vars,
         "timezone": "Pacific/Auckland",
     }
 
@@ -127,7 +138,11 @@ def fetch_forecast_weather(
         .normalize()
     )
 
-    n_days = len(daily.Variables(0).ValuesAsNumpy())
+    values = {
+        name: daily.Variables(i).ValuesAsNumpy()
+        for i, name in enumerate(daily_vars)
+    }
+    n_days = len(values["temperature_2m_max"])
 
     target_dates = pd.date_range(
         start=start_ts,
@@ -135,7 +150,7 @@ def fetch_forecast_weather(
         freq="D",
     )
 
-    rainfall_raw = daily.Variables(2).ValuesAsNumpy()
+    rainfall_raw = values["precipitation_sum"]
 
     df = pd.DataFrame(
         {
@@ -143,9 +158,10 @@ def fetch_forecast_weather(
             "forecast_issue_date": forecast_issue_date,
             "rainfall_mm_raw": rainfall_raw,
             "rainfall_mm_discounted": rainfall_raw * discount_factor,
-            "ET0_mm": daily.Variables(3).ValuesAsNumpy(),
-            "Tmin_C": daily.Variables(1).ValuesAsNumpy(),
-            "Tmax_C": daily.Variables(0).ValuesAsNumpy(),
+            "ET0_mm": values["et0_fao_evapotranspiration"],
+            "wind_speed_kmh": values["wind_speed_10m_max"],
+            "Tmin_C": values["temperature_2m_min"],
+            "Tmax_C": values["temperature_2m_max"],
         }
     )
 

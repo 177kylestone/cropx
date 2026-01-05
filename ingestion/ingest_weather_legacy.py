@@ -15,6 +15,7 @@ def ingest_weather_legacy(
         "date",
         "rainfall_mm",
         "ET0_mm",
+        "wind_speed_kmh",
         "Tmin_C",
         "Tmax_C",
         "data_quality",
@@ -33,11 +34,12 @@ def ingest_weather_legacy(
             date,
             rainfall_mm,
             ET0_mm,
+            wind_speed_kmh,
             Tmin_C,
             Tmax_C,
             data_quality
         )
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """
 
         conn.executemany(
@@ -47,6 +49,7 @@ def ingest_weather_legacy(
                     "date",
                     "rainfall_mm",
                     "ET0_mm",
+                    "wind_speed_kmh",
                     "Tmin_C",
                     "Tmax_C",
                     "data_quality",
