@@ -1,13 +1,12 @@
 # CropX Workshop Pipeline
 
-CropX is a compact, workshop-grade data pipeline that:
+CropX is a compact, workshop-grade pipeline for Canterbury (NZ) irrigation
+planning. It uses a strict NZ (Pacific/Auckland) calendar spine, ingests
+historical and forecast weather, backfills soil water balance, and generates
+7-day irrigation recommendations under practical constraints.
 
-1. **Fetches** weather data (historical + forecast).
-2. **Normalizes/ingests** data into a **SQLite** database with a strict calendar/date authority.
-3. **Models** a simplified soil water balance.
-4. **Plans** irrigation recommendations under practical constraints.
-
-The design goal is a clean separation of concerns: **fetch ≠ ingest ≠ model ≠ plan**, with **NZ (Pacific/Auckland) calendar dates** acting as the single time authority for all date generation and joins.
+The default entrypoint focuses on the strict calendar + weather stage; soil and
+planning steps are available as standalone scripts.
 
 ---
 
@@ -62,18 +61,11 @@ Adjust these values to suit your site and planning horizon.
 ## Repository layout
 
 ### `run_pipeline.py`
-Pipeline orchestrator. Runs the end-to-end sequence in the correct order, typically:
-- ensure calendar horizon exists (strict-mode)
-- fetch → ingest historical weather
-- fetch → ingest forecast weather
-- initialize/update soil state (if applicable)
-- run modeling + planner
-- run validation checks
+Weather-stage orchestrator (strict calendar + weather ingestion + model run registration).
 
 ### `data_sources/` (external data + time authority)
 - `data_sources/time_authority.py`: centralized NZ date logic
 - `data_sources/weather_fetcher.py`: Open-Meteo client for history + forecast
-- `data_sources/climate_interpolator.py`: helpers for gap filling
 
 ### `db/` (database schema + bootstrap)
 - `db/schema.sql`: authoritative schema (calendar is the date spine)
@@ -82,31 +74,36 @@ Pipeline orchestrator. Runs the end-to-end sequence in the correct order, typica
 ### `ingestion/` (calendar + normalize + persist)
 - `ingestion/calendar_builder.py`: initial calendar population
 - `ingestion/calendar_ensure_horizon.py`: extends the calendar horizon
+- `ingestion/backfill_weather_legacy.py`: orchestrates historical backfill
 - `ingestion/ingest_weather_legacy.py`: writes historical weather
 - `ingestion/ingest_weather_forecast.py`: writes forecast weather
-- `ingestion/backfill_weather_legacy.py`: orchestrates historical backfill
 - `ingestion/initialize_soil_state.py`: seeds initial soil state
+- `ingestion/backfill_soil_and_irrigation.py`: synthetic soil + irrigation backfill
+- `ingestion/ingest_irrigation_recommendations.py`: persists planner output
 
 ### `models/` (state evolution and hydrology)
 - `models/soil_water_balance.py`: daily soil water balance
-- `models/rainfall_effectiveness.py`: effective rainfall logic
-- `models/drainage_model.py`: drainage/percolation logic
 
 ### `planning/` (constraints + irrigation recommendation)
 - `planning/irrigation_constraints.py`: operational constraints
 - `planning/irrigation_planner.py`: irrigation recommendations
 
-### `validation/` (sanity checks)
-- `validation/data_completeness_checks.py`: coverage checks
-- `validation/state_consistency_checks.py`: consistency checks
+### `tools/` (utilities)
+- `tools/plot_paw_z5.py`: plot daily PAW_pct for a zone
+- `tools/dataview.py`: quick CSV/DB inspection helper
+- `tools/dir_tree.py`: directory tree helper
+
+### `cropx_reference/data_v1.1/` (reference exports)
+CSV snapshots for calendar, weather, soil, and recommendations.
 
 ---
 
 ## Outputs
 
 - SQLite database: `db/cropx.db`
-- Calendar date spine: `calendar` table
+- Reference CSV exports: `cropx_reference/data_v1.1/`
 - Weather tables: `weather_legacy`, `weather_forecast`
+- Soil + irrigation tables: `soil_water_state`, `irrigation_applied`, `irrigation_recommendations`
 - Model run registry: `model_runs`
 
 ---
@@ -114,5 +111,4 @@ Pipeline orchestrator. Runs the end-to-end sequence in the correct order, typica
 ## Notes
 
 - The pipeline uses **NZ time (Pacific/Auckland)** as the authoritative calendar.
-- The Open-Meteo client caches requests under `.cache/` to reduce network calls.
-- The weather pipeline portion is currently the primary entry point; modeling and planning modules are wired for extension.
+- Open-Meteo responses are cached locally in `.cache.sqlite`.
