@@ -16,6 +16,7 @@ cropvenv/
 
 # --- Jupyter / tooling ---
 .ipynb_checkpoints/
+trial.ipynb
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
