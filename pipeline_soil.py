@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import sqlite3
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Dict, Optional
 import uuid
@@ -11,7 +11,7 @@ import sys
 
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from data_sources.time_authority import nz_yesterday, utc_now_iso_z
@@ -33,6 +33,63 @@ def _connect(db_path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(db_path))
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
+
+
+def _date_from_db(value: Optional[str]) -> Optional[date]:
+    return date.fromisoformat(value) if value else None
+
+
+def _get_latest_forecast_issue_date(conn: sqlite3.Connection) -> date:
+    row = conn.execute("SELECT MAX(forecast_issue_date) FROM weather_forecast;").fetchone()
+    latest = _date_from_db(row[0]) if row else None
+    if latest is None:
+        raise RuntimeError("weather_forecast is empty; cannot determine backfill end date.")
+    return latest
+
+
+def _get_latest_weather_legacy_date(conn: sqlite3.Connection) -> date:
+    row = conn.execute("SELECT MAX(date) FROM weather_legacy;").fetchone()
+    latest = _date_from_db(row[0]) if row else None
+    if latest is None:
+        raise RuntimeError("weather_legacy is empty; cannot determine backfill end date.")
+    return latest
+
+
+def _get_min_weather_legacy_date(conn: sqlite3.Connection) -> date:
+    row = conn.execute("SELECT MIN(date) FROM weather_legacy;").fetchone()
+    earliest = _date_from_db(row[0]) if row else None
+    if earliest is None:
+        raise RuntimeError("weather_legacy is empty; cannot determine backfill start date.")
+    return earliest
+
+
+def _get_latest_soil_state_date(conn: sqlite3.Connection) -> Optional[date]:
+    row = conn.execute("SELECT MAX(date) FROM soil_water_state;").fetchone()
+    return _date_from_db(row[0]) if row else None
+
+
+def _resolve_backfill_window(
+    conn: sqlite3.Connection,
+    *,
+    start_date: Optional[date],
+    end_date: Optional[date],
+) -> Optional[tuple[date, date]]:
+    if end_date is None:
+        latest_forecast_issue = _get_latest_forecast_issue_date(conn)
+        latest_weather = _get_latest_weather_legacy_date(conn)
+        end_date = min(latest_forecast_issue, latest_weather)
+
+    if start_date is None:
+        last_soil_date = _get_latest_soil_state_date(conn)
+        if last_soil_date:
+            start_date = last_soil_date + timedelta(days=1)
+        else:
+            start_date = _get_min_weather_legacy_date(conn)
+
+    if start_date > end_date:
+        return None
+
+    return start_date, end_date
 
 
 def _require_calendar_contiguous(conn: sqlite3.Connection, start: date, end: date) -> None:
@@ -254,8 +311,16 @@ def backfill_soil_water_state(
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Backfill synthetic soil water state.")
-    parser.add_argument("--start-date", required=True, help="YYYY-MM-DD")
-    parser.add_argument("--end-date", default=None, help="YYYY-MM-DD (default: NZ yesterday)")
+    parser.add_argument(
+        "--start-date",
+        default=None,
+        help="YYYY-MM-DD (default: day after latest soil state)",
+    )
+    parser.add_argument(
+        "--end-date",
+        default=None,
+        help="YYYY-MM-DD (default: min(latest forecast issue, latest weather_legacy))",
+    )
     parser.add_argument("--initial-paw-pct", type=float, default=85.0)
     parser.add_argument("--target-paw-pct", type=float, default=100.0)
     parser.add_argument("--min-paw-pct", type=float, default=55.0)
@@ -270,11 +335,22 @@ def _parse_args() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = _parse_args()
-    start = date.fromisoformat(args.start_date)
+    start = date.fromisoformat(args.start_date) if args.start_date else None
     end = date.fromisoformat(args.end_date) if args.end_date else None
     irrigation_months = {
         int(m.strip()) for m in args.irrigation_months.split(",") if m.strip()
     }
+    conn = _connect(DB_PATH)
+    try:
+        window = _resolve_backfill_window(conn, start_date=start, end_date=end)
+    finally:
+        conn.close()
+
+    if window is None:
+        print("No missing soil water dates to backfill.")
+        raise SystemExit(0)
+
+    start, end = window
     result = backfill_soil_water_state(
         start_date=start,
         end_date=end,
