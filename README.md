@@ -10,6 +10,13 @@ planning steps are available as standalone scripts.
 
 ---
 
+## Simulation baseline
+
+- The calendar date spine is populated from 2025-01-01 through 2028-12-31.
+- `soil_zones` and `crop_parameters` are fixed reference tables for the simulation.
+
+---
+
 ## Requirements
 
 - Python 3.9+ (recommended)
@@ -33,7 +40,7 @@ python -m db.init_db
 
 2) **Run the weather pipeline**:
 ```bash
-python run_pipeline.py
+python pipeline_weather.py
 ```
 
 This will:
@@ -42,11 +49,28 @@ This will:
 - Fetch and ingest forecast weather into `weather_forecast`
 - Register a new `model_runs` record
 
+3) **Run the soil backfill pipeline**:
+```bash
+python pipeline_soil.py
+```
+
+This will:
+- Detect missing soil days using `weather_forecast.forecast_issue_date`
+- Backfill `soil_water_state` and `irrigation_applied`
+
+4) **Run the irrigation planner**:
+```bash
+python planning/irrigation_planner.py
+```
+
+This will:
+- Generate 7-day recommendations into `irrigation_recommendations`
+
 ---
 
 ## Configuration
 
-The pipeline is configured in `run_pipeline.py`:
+The pipeline is configured in `pipeline_weather.py`:
 
 - `LATITUDE` / `LONGITUDE`: location for weather data
 - `CALENDAR_HORIZON_DAYS`: how far ahead the calendar must be extended
@@ -60,8 +84,11 @@ Adjust these values to suit your site and planning horizon.
 
 ## Repository layout
 
-### `run_pipeline.py`
+### `pipeline_weather.py`
 Weather-stage orchestrator (strict calendar + weather ingestion + model run registration).
+
+### `pipeline_soil.py`
+Soil + irrigation backfill pipeline (auto-detects missing dates).
 
 ### `data_sources/` (external data + time authority)
 - `data_sources/time_authority.py`: centralized NZ date logic
@@ -78,7 +105,7 @@ Weather-stage orchestrator (strict calendar + weather ingestion + model run regi
 - `ingestion/ingest_weather_legacy.py`: writes historical weather
 - `ingestion/ingest_weather_forecast.py`: writes forecast weather
 - `ingestion/initialize_soil_state.py`: seeds initial soil state
-- `ingestion/backfill_soil_and_irrigation.py`: synthetic soil + irrigation backfill
+- `ingestion/backfill_soil_and_irrigation.py`: legacy soil + irrigation backfill (kept for reference)
 - `ingestion/ingest_irrigation_recommendations.py`: persists planner output
 
 ### `models/` (state evolution and hydrology)
@@ -89,7 +116,7 @@ Weather-stage orchestrator (strict calendar + weather ingestion + model run regi
 - `planning/irrigation_planner.py`: irrigation recommendations
 
 ### `tools/` (utilities)
-- `tools/plot_paw_z5.py`: plot daily PAW_pct for a zone
+- `tools/plot_paw.py`: plot daily PAW_pct for a zone
 - `tools/dataview.py`: quick CSV/DB inspection helper
 - `tools/dir_tree.py`: directory tree helper
 
